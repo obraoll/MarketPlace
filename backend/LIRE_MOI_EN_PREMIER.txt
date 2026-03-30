@@ -1,0 +1,80 @@
+╔══════════════════════════════════════════════════════════════════════╗
+║                                                                      ║
+║          ⚠️  ERREUR : MySQL n'est pas reconnu dans PowerShell       ║
+║                                                                      ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+
+🎯 SOLUTION IMMEDIATE (1 commande) :
+═══════════════════════════════════════════════════════════════════════
+
+Dans PowerShell, tapez :
+
+    .\setup_mysql_sans_path.bat
+
+Appuyez sur ENTREE.
+
+✅ Ce script va TOUT configurer automatiquement !
+
+
+📋 CE QUE LE SCRIPT VA FAIRE :
+═══════════════════════════════════════════════════════════════════════
+
+  1. ✅ Trouver MySQL sur votre ordinateur
+  2. ✅ Creer la base de donnees "marketplace_db"
+  3. ✅ Creer l'utilisateur MySQL
+  4. ✅ Tester la connexion
+  5. ✅ Creer toutes les tables
+  6. ✅ Ajouter les donnees de test (3 utilisateurs, 5 produits)
+
+
+🔍 VERIFIER SI MYSQL EST INSTALLE :
+═══════════════════════════════════════════════════════════════════════
+
+Dans PowerShell, tapez :
+
+    .\verifier_mysql.bat
+
+
+❌ MYSQL N'EST PAS INSTALLE ?
+═══════════════════════════════════════════════════════════════════════
+
+Installez l'une de ces solutions :
+
+Option 1 - MySQL (Officiel) :
+  → https://dev.mysql.com/downloads/installer/
+
+Option 2 - XAMPP (Plus simple, recommande pour debuter) :
+  → https://www.apachefriends.org/
+
+
+📚 BESOIN DE PLUS D'AIDE ?
+═══════════════════════════════════════════════════════════════════════
+
+Consultez ces fichiers :
+
+  - AIDE_RAPIDE.md               (Guide ultra-rapide)
+  - SOLUTION_MYSQL_PATH.md       (Guide complet du probleme)
+  - CONFIGURATION_MYSQL_RAPIDE.md (Configuration complete)
+
+
+🎉 APRES LA CONFIGURATION :
+═══════════════════════════════════════════════════════════════════════
+
+Lancez l'application avec :
+
+    Terminal 1 :  uvicorn app.main:app --reload
+    Terminal 2 :  cd ..\frontend && npm run dev
+
+Ou utilisez :
+
+    ..\start_marketplace.bat
+
+
+═══════════════════════════════════════════════════════════════════════
+
+        💡 UN SEUL SCRIPT POUR TOUT CONFIGURER :
+
+            .\setup_mysql_sans_path.bat
+
+═══════════════════════════════════════════════════════════════════════
