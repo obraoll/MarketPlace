@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from typing import List
-from datetime import datetime
+from datetime import datetime, timedelta
 import secrets
 from ..core.database import get_db
 from ..core.dependencies import get_current_user, get_current_vendeur
@@ -24,9 +24,28 @@ ALLOWED_STATUS_TRANSITIONS = {
     OrderStatus.CANCELLED: set(),
 }
 
+SHIPPING_METHODS = {
+    "standard": {
+        "label": "Standard",
+        "eta_days": (3, 5),
+    },
+    "relay": {
+        "label": "Point relais",
+        "eta_days": (2, 4),
+    },
+    "express": {
+        "label": "Express",
+        "eta_days": (1, 2),
+    },
+}
+
 
 def validate_single_seller(product_seller_id: int, seller_id_ref: int | None) -> int:
-    """Valide qu'une commande ne contient que des produits d'un seul vendeur."""
+    """Valide qu'une commande ne contient que des produits d'un seul vendeur.
+
+    Cette contrainte simplifie le fulfillment actuel :
+    1 commande = 1 vendeur (expédition, suivi, statuts).
+    """
     if seller_id_ref is None:
         return product_seller_id
     if seller_id_ref != product_seller_id:
@@ -44,14 +63,46 @@ def generate_order_number() -> str:
     return f"ORD-{timestamp}-{random_part}"
 
 
+def normalize_shipping_method(raw_method: str | None) -> str:
+    method = (raw_method or "standard").strip().lower()
+    if method not in SHIPPING_METHODS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Mode de livraison invalide (standard, relay, express)"
+        )
+    return method
+
+
 def compute_shipping_cost(method: str, total_amount: float) -> float:
-    method = (method or "standard").lower()
+    method = normalize_shipping_method(method)
     if method == "express":
         return 9.90
     if method == "relay":
         return 4.90
     # standard
     return 0.0 if total_amount >= 80 else 6.90
+
+
+def estimate_delivery_window(created_at: datetime, method: str) -> tuple[str, str]:
+    method = normalize_shipping_method(method)
+    min_days, max_days = SHIPPING_METHODS[method]["eta_days"]
+    base_date = created_at.date()
+    start = (base_date + timedelta(days=min_days)).isoformat()
+    end = (base_date + timedelta(days=max_days)).isoformat()
+    return start, end
+
+
+def add_shipping_details(order: Order) -> Order:
+    if not order.checkout_meta:
+        return order
+    shipping_method = normalize_shipping_method(order.checkout_meta.shipping_method)
+    start, end = estimate_delivery_window(order.created_at, shipping_method)
+    order.checkout_meta.shipping_method = shipping_method
+    order.checkout_meta.shipping_label = SHIPPING_METHODS[shipping_method]["label"]
+    order.checkout_meta.estimated_delivery_start = start
+    order.checkout_meta.estimated_delivery_end = end
+    order.checkout_meta.tracking_number = f"TRK-{order.order_number}"
+    return order
 
 
 def compute_discount(db: Session, promo_code_value: str | None, subtotal: float) -> tuple[float, str | None]:
@@ -80,6 +131,14 @@ def create_order(
     """
     Crée une nouvelle commande à partir des items fournis
     """
+    # Garde-fou métier: seules les sessions client peuvent créer des commandes.
+    # Sinon les commandes seraient rattachées au mauvais "customer_id".
+    if current_user.role != UserRole.CLIENT:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Seuls les comptes client peuvent passer commande"
+        )
+
     if not order_data.items:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -106,6 +165,7 @@ def create_order(
                 detail=f"Stock insuffisant pour {product.name}"
             )
         
+        # Applique explicitement la règle mono-vendeur sur chaque item.
         seller_id_ref = validate_single_seller(product.seller_id, seller_id_ref)
         total_amount += product.price * item.quantity
         order_items.append({
@@ -116,7 +176,7 @@ def create_order(
     
     subtotal = total_amount
     discount_amount, promo_code_used = compute_discount(db, order_data.promo_code, subtotal)
-    shipping_method = order_data.shipping_method or "standard"
+    shipping_method = normalize_shipping_method(order_data.shipping_method)
     shipping_cost = compute_shipping_cost(shipping_method, subtotal - discount_amount)
     platform_fee = round((subtotal - discount_amount) * 0.08, 2)
     shipping_address = (order_data.shipping_address or "").strip() or "Adresse non fournie"
@@ -164,7 +224,7 @@ def create_order(
     db.commit()
     db.refresh(new_order)
     
-    return new_order
+    return add_shipping_details(new_order)
 
 
 @router.post("/from-cart", response_model=OrderResponse, status_code=status.HTTP_201_CREATED)
@@ -176,6 +236,13 @@ def create_order_from_cart(
     """
     Crée une commande à partir du panier de l'utilisateur
     """
+    # Même garde-fou pour le checkout panier.
+    if current_user.role != UserRole.CLIENT:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Seuls les comptes client peuvent passer commande"
+        )
+
     cart_items = db.query(CartItem).filter(CartItem.user_id == current_user.id).all()
     
     if not cart_items:
@@ -198,6 +265,7 @@ def create_order_from_cart(
                 detail=f"Stock insuffisant pour {product.name}"
             )
         
+        # Le panier peut contenir plusieurs lignes, mais toujours d'un seul vendeur.
         seller_id_ref = validate_single_seller(product.seller_id, seller_id_ref)
         total_amount += product.price * cart_item.quantity
         order_items.append({
@@ -208,7 +276,7 @@ def create_order_from_cart(
     
     subtotal = total_amount
     discount_amount, promo_code_used = compute_discount(db, checkout_data.promo_code, subtotal)
-    shipping_method = checkout_data.shipping_method or "standard"
+    shipping_method = normalize_shipping_method(checkout_data.shipping_method)
     shipping_cost = compute_shipping_cost(shipping_method, subtotal - discount_amount)
     platform_fee = round((subtotal - discount_amount) * 0.08, 2)
     shipping_address = checkout_data.shipping_address.strip()
@@ -261,7 +329,7 @@ def create_order_from_cart(
     db.commit()
     db.refresh(new_order)
     
-    return new_order
+    return add_shipping_details(new_order)
 
 
 @router.get("/promo/validate")
@@ -300,7 +368,7 @@ def get_orders(
         .order_by(Order.created_at.desc())
         .all()
     )
-    return orders
+    return [add_shipping_details(order) for order in orders]
 
 
 @router.get("/{order_id}", response_model=OrderResponse)
@@ -333,7 +401,7 @@ def get_order(
             detail="Accès refusé à cette commande"
         )
     
-    return order
+    return add_shipping_details(order)
 
 
 @router.put("/{order_id}", response_model=OrderResponse)
@@ -386,7 +454,7 @@ def update_order_status(
     db.commit()
     db.refresh(order)
     
-    return order
+    return add_shipping_details(order)
 
 
 @router.get("/seller/stats")
@@ -450,7 +518,7 @@ def get_seller_orders(
         .limit(limit)
         .all()
     )
-    return orders
+    return [add_shipping_details(order) for order in orders]
 
 
 @router.get("/seller/clients", response_model=List[UserResponse])

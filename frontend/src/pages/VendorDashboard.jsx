@@ -28,6 +28,7 @@ const PERIOD_OPTIONS = [
 
 const MENU_SECTIONS = [
   { id: 'dashboard', label: 'Dashboard', icon: '📊' },
+  { id: 'commandes', label: 'Commandes', icon: '🧾' },
   { id: 'revenus', label: 'Revenus', icon: '💰' },
   { id: 'produits', label: 'Produits', icon: '📦' },
   { id: 'analytics', label: 'Analytics', icon: '📈' },
@@ -65,6 +66,14 @@ const STATUS_FILTERS = [
   { value: 'delivered', label: 'Livrée' },
   { value: 'cancelled', label: 'Annulée' },
 ]
+
+const ALLOWED_VENDOR_TRANSITIONS = {
+  pending: ['confirmed', 'cancelled'],
+  confirmed: ['shipped', 'cancelled'],
+  shipped: ['delivered'],
+  delivered: [],
+  cancelled: [],
+}
 
 const MOIS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc']
 
@@ -233,6 +242,7 @@ function VendorDashboard() {
     category: 'smartphone',
     condition: 'excellent',
     price: '',
+    reference_price_neuf: '',
     stock: '',
     description: '',
     specifications: '',
@@ -392,7 +402,18 @@ function VendorDashboard() {
           return
         }
       }
-      const payload = { ...formData, image_urls: imageUrls, variants }
+      const refRaw = formData.reference_price_neuf
+      const reference_price_neuf =
+        refRaw === '' || refRaw == null ? null : Number(refRaw)
+      const payload = {
+        ...formData,
+        reference_price_neuf:
+          reference_price_neuf != null && Number.isFinite(reference_price_neuf)
+            ? reference_price_neuf
+            : null,
+        image_urls: imageUrls,
+        variants,
+      }
       if (editingProduct) {
         await productsAPI.update(editingProduct.id, payload)
         alert('Produit mis à jour.')
@@ -415,6 +436,10 @@ function VendorDashboard() {
       category: p.category,
       condition: p.condition,
       price: p.price,
+      reference_price_neuf:
+        p.reference_price_neuf != null && p.reference_price_neuf !== ''
+          ? p.reference_price_neuf
+          : '',
       stock: p.stock,
       description: p.description || '',
       specifications: p.specifications || '',
@@ -469,6 +494,9 @@ function VendorDashboard() {
     }
   }
 
+  const canMoveTo = (currentStatus, targetStatus) =>
+    (ALLOWED_VENDOR_TRANSITIONS[currentStatus] || []).includes(targetStatus)
+
   const resetForm = () => {
     setFormData({
       name: '',
@@ -476,6 +504,7 @@ function VendorDashboard() {
       category: 'smartphone',
       condition: 'excellent',
       price: '',
+      reference_price_neuf: '',
       stock: '',
       description: '',
       specifications: '',
@@ -709,11 +738,13 @@ function VendorDashboard() {
                 </div>
               )}
 
-              {/* ---------- REVENUS / COMMANDES ---------- */}
-              {section === 'revenus' && (
+              {/* ---------- COMMANDES / REVENUS ---------- */}
+              {(section === 'revenus' || section === 'commandes') && (
                 <div className="space-y-8">
                   <div className="flex flex-wrap items-center justify-between gap-4">
-                    <h1 className="text-3xl font-bold">Revenus & Commandes</h1>
+                    <h1 className="text-3xl font-bold">
+                      {section === 'commandes' ? 'Gestion des commandes' : 'Revenus & Commandes'}
+                    </h1>
                     <div className="flex flex-wrap items-center gap-2">
                       <select
                         value={periodFilter}
@@ -730,15 +761,22 @@ function VendorDashboard() {
                       >
                         📥 Exporter CSV
                       </button>
-                      <button
-                        disabled
-                        className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-300 text-gray-600 cursor-not-allowed"
-                        title="Les commandes sont créées par les clients depuis le panier (lecture seule vendeur)."
-                      >
-                        Commandes créées côté client
-                      </button>
+                      {section !== 'commandes' && (
+                        <button
+                          disabled
+                          className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-300 text-gray-600 cursor-not-allowed"
+                          title="Les commandes sont créées par les clients depuis le panier."
+                        >
+                          Commandes créées côté client
+                        </button>
+                      )}
                     </div>
                   </div>
+                  {section === 'commandes' && (
+                    <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+                      Vous pouvez valider, refuser, expédier ou marquer livrée une commande selon son état courant.
+                    </div>
+                  )}
                   <div className="flex flex-wrap gap-2">
                     {STATUS_FILTERS.map((f) => (
                       <button
@@ -755,7 +793,7 @@ function VendorDashboard() {
                     ))}
                   </div>
                   <div className={cardClass}>
-                    <div className="h-72 mb-6">
+                    {section === 'revenus' && <div className="h-72 mb-6">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={salesByMonth}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -765,7 +803,7 @@ function VendorDashboard() {
                           <Bar dataKey="ventes" fill="#2563eb" name="Ventes" radius={[4, 4, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
-                    </div>
+                    </div>}
                   </div>
                   <div className={cardClass}>
                     <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
@@ -841,6 +879,40 @@ function VendorDashboard() {
                                     }`}>
                                       {o.status === 'delivered' ? 'Livré' : o.status === 'shipped' ? 'Expédié' : o.status === 'confirmed' ? 'Confirmé' : o.status === 'pending' ? 'En attente' : 'Annulé'}
                                     </span>
+                                    <div className="mt-2 flex flex-wrap gap-1">
+                                      <button
+                                        type="button"
+                                        className={`px-2 py-1 rounded text-xs ${canMoveTo(o.status, 'confirmed') ? 'bg-amber-100 hover:bg-amber-200' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
+                                        disabled={!canMoveTo(o.status, 'confirmed')}
+                                        onClick={() => handleUpdateOrderStatus(o.id, 'confirmed')}
+                                      >
+                                        Valider
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className={`px-2 py-1 rounded text-xs ${canMoveTo(o.status, 'cancelled') ? 'bg-red-100 hover:bg-red-200 text-red-700' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
+                                        disabled={!canMoveTo(o.status, 'cancelled')}
+                                        onClick={() => handleUpdateOrderStatus(o.id, 'cancelled')}
+                                      >
+                                        Refuser
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className={`px-2 py-1 rounded text-xs ${canMoveTo(o.status, 'shipped') ? 'bg-blue-100 hover:bg-blue-200 text-blue-700' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
+                                        disabled={!canMoveTo(o.status, 'shipped')}
+                                        onClick={() => handleUpdateOrderStatus(o.id, 'shipped')}
+                                      >
+                                        Expédier
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className={`px-2 py-1 rounded text-xs ${canMoveTo(o.status, 'delivered') ? 'bg-green-100 hover:bg-green-200 text-green-700' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
+                                        disabled={!canMoveTo(o.status, 'delivered')}
+                                        onClick={() => handleUpdateOrderStatus(o.id, 'delivered')}
+                                      >
+                                        Livrer
+                                      </button>
+                                    </div>
                                   </td>
                                 </tr>
                               )
@@ -900,6 +972,18 @@ function VendorDashboard() {
                           <div>
                             <label className="block text-sm font-medium mb-1">Prix (€) *</label>
                             <input type="number" step="0.01" value={formData.price} onChange={(e) => setFormData({ ...formData, price: e.target.value })} className={inputClass} required />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-1">Prix neuf de référence (€)</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={formData.reference_price_neuf}
+                              onChange={(e) => setFormData({ ...formData, reference_price_neuf: e.target.value })}
+                              className={inputClass}
+                              placeholder="Optionnel, pour prix barré"
+                            />
                           </div>
                           <div>
                             <label className="block text-sm font-medium mb-1">Stock *</label>

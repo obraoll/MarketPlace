@@ -25,6 +25,7 @@ export const useCartStore = create((set, get) => ({
       await get().fetchCart()
       return true
     } catch (error) {
+      // Le backend peut refuser l'ajout si le panier contient déjà un autre vendeur.
       set({ error: error.response?.data?.detail || 'Erreur lors de l\'ajout au panier' })
       return false
     }

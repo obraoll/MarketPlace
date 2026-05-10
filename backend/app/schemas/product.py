@@ -7,6 +7,12 @@ from typing import Optional, List
 from ..models.product import ProductCondition, ProductCategory
 
 
+class SellerSnippet(BaseModel):
+    """Aperçu vendeur exposé sur la fiche produit (sans e-mail)."""
+    id: int
+    display_name: str
+
+
 class ProductBase(BaseModel):
     """Schéma de base produit"""
     name: str
@@ -14,6 +20,7 @@ class ProductBase(BaseModel):
     category: ProductCategory
     condition: ProductCondition
     price: float
+    reference_price_neuf: Optional[float] = None
     stock: int
     description: Optional[str] = None
     specifications: Optional[str] = None
@@ -51,7 +58,8 @@ class ProductResponse(ProductBase):
     seller_id: int
     is_active: bool
     created_at: datetime
-    
+    seller: Optional[SellerSnippet] = None
+
     model_config = ConfigDict(from_attributes=True)
 
 

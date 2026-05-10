@@ -8,9 +8,14 @@ function TestLoginPage() {
     setLoading(true)
     setResult('Test en cours...')
     
+    const apiBase =
+      import.meta.env.VITE_API_URL?.trim() ||
+      (import.meta.env.DEV ? '/api/v1' : 'http://localhost:8000/api/v1')
+    const healthUrl = import.meta.env.DEV ? '/health' : 'http://localhost:8000/health'
+
     try {
       // Test 1 : Vérifier le backend
-      const healthResponse = await fetch('http://localhost:8000/health')
+      const healthResponse = await fetch(healthUrl)
       const healthData = await healthResponse.json()
       
       if (healthData.status !== 'healthy') {
@@ -46,7 +51,7 @@ function TestLoginPage() {
       }
       
       // Test 3 : Vérifier le token
-      const meResponse = await fetch('http://localhost:8000/api/v1/auth/me', {
+      const meResponse = await fetch(`${apiBase}/auth/me`, {
         headers: {
           'Authorization': `Bearer ${loginData.access_token}`
         }
@@ -90,7 +95,7 @@ SOLUTION :
   }
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-2xl mx-auto px-4 py-8">
       <div className="card">
         <h1 className="text-3xl font-bold mb-6 text-center">
           🔧 Page de Test - Connexion

@@ -52,7 +52,7 @@ function WishlistPage() {
   }, [ids])
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
       <SeoHead
         title="Favoris - Marketplace"
         description="Retrouvez vos produits favoris enregistrés."

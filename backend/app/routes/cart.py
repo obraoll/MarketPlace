@@ -54,6 +54,7 @@ def add_to_cart(
         )
     
     # Règle mono-vendeur: le panier ne peut contenir qu'un seul vendeur.
+    # Cette règle est alignée avec le checkout (orders.py) qui impose aussi 1 commande = 1 vendeur.
     existing_cart_items = db.query(CartItem).filter(CartItem.user_id == current_user.id).all()
     if existing_cart_items:
         existing_product_ids = [ci.product_id for ci in existing_cart_items]

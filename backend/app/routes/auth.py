@@ -1,20 +1,17 @@
 """
 Routes d'authentification
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from datetime import timedelta
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 from ..core.database import get_db
 from ..core.security import verify_password, get_password_hash, create_access_token
 from ..core.config import settings
 from ..core.dependencies import get_current_user
-from ..models import User
+from ..models import User, UserRole
 from ..schemas import UserCreate, UserLogin, UserResponse, Token
 
 router = APIRouter(prefix="/auth", tags=["Authentification"])
-limiter = Limiter(key_func=get_remote_address)
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -47,11 +44,11 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=Token)
-@limiter.limit("5/minute")  # Maximum 5 tentatives par minute
-def login(request: Request, credentials: UserLogin, db: Session = Depends(get_db)):
+def login(credentials: UserLogin, db: Session = Depends(get_db)):
     """
-    Connexion d'un utilisateur
-    Protection : 5 tentatives maximum par minute par IP
+    Connexion d'un utilisateur.
+    (Pas de rate-limit SlowAPI sur cette route : évite des erreurs 500 avec uvicorn --reload
+    et FastAPI/sync ; une limite peut être ajoutée au proxy en production.)
     """
     # Trouver l'utilisateur
     user = db.query(User).filter(User.email == credentials.email).first()
@@ -69,10 +66,11 @@ def login(request: Request, credentials: UserLogin, db: Session = Depends(get_db
             detail=status_msg
         )
     
-    # Créer le token JWT
+    # Créer le token JWT (rôle toujours une chaîne pour éviter erreurs si le type ORM varie)
+    role_str = user.role.value if isinstance(user.role, UserRole) else str(user.role).lower()
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": str(user.id), "email": user.email, "role": user.role.value},  # ✅ Convertir en string
+        data={"sub": str(user.id), "email": user.email, "role": role_str},
         expires_delta=access_token_expires
     )
     

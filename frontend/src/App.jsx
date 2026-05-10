@@ -1,7 +1,12 @@
 import { lazy, Suspense } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from './stores/authStore'
 import Navbar from './components/Navbar'
+import MarketingHeader from './components/marketing/MarketingHeader'
+import SiteFooter from './components/marketing/SiteFooter'
+import { t } from './i18n'
+import { useLocaleStore } from './stores/localeStore'
+
 const HomePage = lazy(() => import('./pages/HomePage'))
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const RegisterPage = lazy(() => import('./pages/RegisterPage'))
@@ -21,25 +26,22 @@ const LegalPage = lazy(() => import('./pages/LegalPage'))
 function ProtectedRoute({ children, requiredRole }) {
   const { user, isAuthenticated, authChecked } = useAuthStore()
 
-  if (!authChecked) {
-    return <p className="text-sm text-gray-500">Chargement session...</p>
-  }
-  
+  if (!authChecked) return <SessionLoadingScreen />
+
   if (!isAuthenticated) {
     return <Navigate to="/login" />
   }
-  
+
   if (requiredRole && user?.role !== requiredRole) {
     return <Navigate to="/" />
   }
-  
+
   return children
 }
 
-/** Admin et vendeur n'ont accès qu'à leur dashboard : redirection depuis la home et la marketplace. */
 function NoMarketplaceForAdminAndVendor({ children }) {
   const { user, authChecked } = useAuthStore()
-  if (!authChecked) return <p className="text-sm text-gray-500">Chargement session...</p>
+  if (!authChecked) return <SessionLoadingScreen />
   if (user?.role === 'admin') {
     return <Navigate to="/admin/dashboard" replace />
   }
@@ -49,10 +51,24 @@ function NoMarketplaceForAdminAndVendor({ children }) {
   return children
 }
 
-/** Après connexion, admin et vendeur sont redirigés directement vers leur dashboard. */
+function SessionLoadingScreen() {
+  return (
+    <div className="flex min-h-[45vh] w-full flex-col items-center justify-center px-4 py-16 text-center">
+      <div
+        className="mb-5 h-11 w-11 animate-spin rounded-full border-2 border-primary-600 border-t-transparent"
+        aria-hidden
+      />
+      <p className="text-base font-semibold text-gray-900">Chargement…</p>
+      <p className="mt-2 max-w-md text-sm text-gray-500">
+        Connexion au serveur (port 8000). Patientez quelques secondes.
+      </p>
+    </div>
+  )
+}
+
 function HomeOrRedirectToDashboard({ children }) {
   const { user, isAuthenticated, authChecked } = useAuthStore()
-  if (!authChecked) return <p className="text-sm text-gray-500">Chargement session...</p>
+  if (!authChecked) return <SessionLoadingScreen />
   if (isAuthenticated && user?.role === 'admin') {
     return <Navigate to="/admin/dashboard" replace />
   }
@@ -63,58 +79,125 @@ function HomeOrRedirectToDashboard({ children }) {
 }
 
 function App() {
+  const location = useLocation()
+  const { locale } = useLocaleStore()
+  const isDashboardRoute =
+    location.pathname.startsWith('/vendor/dashboard') ||
+    location.pathname.startsWith('/admin/dashboard')
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navbar />
-      <main className="max-w-6xl mx-auto px-6 py-10">
-        <Suspense fallback={<p className="text-sm text-gray-500">Chargement...</p>}>
-        <Routes>
-          <Route path="/" element={<HomeOrRedirectToDashboard><HomePage /></HomeOrRedirectToDashboard>} />
-          <Route path="/test-login" element={<TestLoginPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={
-            <HomeOrRedirectToDashboard>
-              <RegisterPage />
-            </HomeOrRedirectToDashboard>
-          } />
-          <Route path="/products" element={<NoMarketplaceForAdminAndVendor><ProductsPage /></NoMarketplaceForAdminAndVendor>} />
-          <Route path="/products/:id" element={<NoMarketplaceForAdminAndVendor><ProductDetailPage /></NoMarketplaceForAdminAndVendor>} />
-          <Route path="/wishlist" element={<NoMarketplaceForAdminAndVendor><WishlistPage /></NoMarketplaceForAdminAndVendor>} />
-          <Route path="/compare" element={<NoMarketplaceForAdminAndVendor><ComparePage /></NoMarketplaceForAdminAndVendor>} />
-          <Route path="/help" element={<HelpPage />} />
-          <Route path="/legal" element={<LegalPage />} />
-          <Route path="/cart" element={
-            <NoMarketplaceForAdminAndVendor>
-              <ProtectedRoute>
-                <CartPage />
-              </ProtectedRoute>
-            </NoMarketplaceForAdminAndVendor>
-          } />
-          <Route path="/orders" element={
-            <NoMarketplaceForAdminAndVendor>
-              <ProtectedRoute>
-                <OrdersPage />
-              </ProtectedRoute>
-            </NoMarketplaceForAdminAndVendor>
-          } />
-          <Route path="/vendor/dashboard" element={
-            <ProtectedRoute requiredRole="vendeur">
-              <VendorDashboard />
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/dashboard" element={
-            <ProtectedRoute requiredRole="admin">
-              <AdminDashboard />
-            </ProtectedRoute>
-          } />
-          <Route path="/account" element={
-            <ProtectedRoute>
-              <AccountPage />
-            </ProtectedRoute>
-          } />
-        </Routes>
+    <div className="min-h-screen bg-surface-muted flex flex-col">
+      {isDashboardRoute ? <Navbar /> : <MarketingHeader />}
+      <main
+        className={
+          isDashboardRoute
+            ? 'flex-1 w-full max-w-7xl mx-auto px-6 py-10'
+            : 'flex-1 w-full px-0 py-0 sm:py-2'
+        }
+      >
+        <Suspense fallback={<p className="text-sm text-gray-500 px-4 py-8">{t(locale, 'loading')}</p>}>
+          <Routes>
+            <Route
+              path="/"
+              element={
+                <HomeOrRedirectToDashboard>
+                  <HomePage />
+                </HomeOrRedirectToDashboard>
+              }
+            />
+            <Route path="/test-login" element={<TestLoginPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route
+              path="/register"
+              element={
+                <HomeOrRedirectToDashboard>
+                  <RegisterPage />
+                </HomeOrRedirectToDashboard>
+              }
+            />
+            <Route
+              path="/products"
+              element={
+                <NoMarketplaceForAdminAndVendor>
+                  <ProductsPage />
+                </NoMarketplaceForAdminAndVendor>
+              }
+            />
+            <Route
+              path="/products/:id"
+              element={
+                <NoMarketplaceForAdminAndVendor>
+                  <ProductDetailPage />
+                </NoMarketplaceForAdminAndVendor>
+              }
+            />
+            <Route
+              path="/wishlist"
+              element={
+                <NoMarketplaceForAdminAndVendor>
+                  <WishlistPage />
+                </NoMarketplaceForAdminAndVendor>
+              }
+            />
+            <Route
+              path="/compare"
+              element={
+                <NoMarketplaceForAdminAndVendor>
+                  <ComparePage />
+                </NoMarketplaceForAdminAndVendor>
+              }
+            />
+            <Route path="/help" element={<HelpPage />} />
+            <Route path="/legal" element={<LegalPage />} />
+            <Route
+              path="/cart"
+              element={
+                <NoMarketplaceForAdminAndVendor>
+                  <ProtectedRoute>
+                    <CartPage />
+                  </ProtectedRoute>
+                </NoMarketplaceForAdminAndVendor>
+              }
+            />
+            <Route
+              path="/orders"
+              element={
+                <NoMarketplaceForAdminAndVendor>
+                  <ProtectedRoute>
+                    <OrdersPage />
+                  </ProtectedRoute>
+                </NoMarketplaceForAdminAndVendor>
+              }
+            />
+            <Route
+              path="/vendor/dashboard"
+              element={
+                <ProtectedRoute requiredRole="vendeur">
+                  <VendorDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/dashboard"
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <AdminDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/account"
+              element={
+                <ProtectedRoute>
+                  <AccountPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
         </Suspense>
       </main>
+      {!isDashboardRoute && <SiteFooter />}
     </div>
   )
 }

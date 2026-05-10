@@ -1,10 +1,11 @@
+# bcrypt<5 : éviter l’incompatibilité ancienne stack passlib / erreurs 500 au login (voir security.py).
 fastapi>=0.115.0
 uvicorn[standard]>=0.32.0
 sqlalchemy>=2.0.36
 pymysql>=1.1.1
 cryptography>=42.0.5
 python-jose[cryptography]>=3.3.0
-passlib[bcrypt]>=1.7.4
+bcrypt>=4.1.2,<5
 python-multipart>=0.0.12
 pydantic[email]>=2.10.0
 pydantic-settings>=2.6.1

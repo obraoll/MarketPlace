@@ -155,7 +155,7 @@ function AccountPage() {
   }
   
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-2xl mx-auto px-4 py-8">
       <SeoHead title="Mon compte - Marketplace" description="Gérez votre profil, sécurité et tickets support." canonicalPath="/account" />
       <Breadcrumbs items={[{ label: 'Accueil', to: '/' }, { label: 'Mon Compte' }]} />
       <h1 className="text-lg font-semibold text-gray-900 mb-6">Mon Compte</h1>

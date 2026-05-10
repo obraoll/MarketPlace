@@ -27,7 +27,7 @@ function LoginPage() {
   }
 
   return (
-    <div className="max-w-md mx-auto">
+    <div className="max-w-md mx-auto px-4 py-8">
       <div className="card">
         <h1 className="text-xl font-semibold text-gray-900 text-center mb-6">
           Connexion

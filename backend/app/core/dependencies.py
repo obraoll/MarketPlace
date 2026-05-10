@@ -12,22 +12,13 @@ from ..models import User, UserRole
 security = HTTPBearer(auto_error=False)
 
 
-async def get_current_user(
+def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ) -> User:
     """
-    Récupère l'utilisateur actuel à partir du token JWT
-    
-    Args:
-        credentials: Token JWT
-        db: Session de base de données
-    
-    Returns:
-        Utilisateur actuel
-    
-    Raises:
-        HTTPException: Si le token est invalide ou l'utilisateur n'existe pas
+    Récupère l'utilisateur actuel à partir du token JWT.
+    Fonction synchrone : la session SQLAlchemy est synchrone (évite de bloquer la boucle asyncio).
     """
     if credentials is None:
         raise HTTPException(
@@ -89,8 +80,8 @@ async def get_current_vendeur(
     return current_user
 
 
-async def get_current_admin(
-    current_user: User = Depends(get_current_user)
+def get_current_admin(
+    current_user: User = Depends(get_current_user),
 ) -> User:
     """Vérifie que l'utilisateur actuel est un administrateur"""
     if current_user.role != UserRole.ADMIN:

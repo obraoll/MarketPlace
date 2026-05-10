@@ -3,14 +3,17 @@ Application principale FastAPI - Marketplace
 """
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
-from fastapi.responses import Response
+from fastapi.responses import Response, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from sqlalchemy import text
+from sqlalchemy.engine import make_url
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 from .core.config import settings
+from .core.limiter import limiter
 from .core.database import Base, engine, SessionLocal
 from .core.logging_config import setup_logging, get_logger
+from .core.exception_handlers import register_exception_handlers
 from .models import Product
 from .routes import (
     auth_router,
@@ -30,18 +33,49 @@ from .routes import (
 setup_logging()
 logger = get_logger(__name__)
 
+
+def _safe_rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
+    """Évite un 500 texte si l’état SlowAPI (view_rate_limit) est incomplet."""
+    try:
+        return _rate_limit_exceeded_handler(request, exc)
+    except Exception:
+        logger.exception("Handler SlowAPI RateLimitExceeded a échoué")
+        return JSONResponse(
+            status_code=429,
+            content={"detail": "Trop de requêtes. Patientez une minute puis réessayez."},
+        )
+
+
 # Créer les tables
 Base.metadata.create_all(bind=engine)
 
-# Configurer le rate limiter
-limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Gestion du cycle de vie FastAPI (remplace @app.on_event)."""
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        logger.info("Vérification DB au démarrage : OK")
+        try:
+            u = make_url(settings.DATABASE_URL)
+            logger.info(
+                "Base utilisée par l'API : %s (hôte=%s, base=%s)",
+                u.drivername,
+                u.host or "(local)",
+                u.database or "(non défini)",
+            )
+        except Exception:
+            pass
+    except Exception as e:
+        logger.error(
+            "Vérification DB au démarrage : échec — %s",
+            e,
+            exc_info=True,
+        )
     logger.info("Application Marketplace démarrée", extra={
         "version": settings.APP_VERSION,
-        "environment": "development"
+        "environment": settings.ENVIRONMENT,
     })
     yield
     logger.info("Application Marketplace arrêtée")
@@ -59,7 +93,8 @@ app = FastAPI(
 
 # Ajouter le rate limiter à l'application
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_exception_handler(RateLimitExceeded, _safe_rate_limit_exceeded_handler)
+register_exception_handlers(app)
 
 # Configuration CORS (restrictif en production)
 cors_config = {
@@ -71,6 +106,10 @@ cors_config = {
 if settings.ENVIRONMENT == "development":
     cors_config["allow_methods"] = ["*"]
     cors_config["allow_headers"] = ["*"]
+    # localhost / 127.0.0.1 / ::1 et tout port (Vite, preview, etc.)
+    cors_config["allow_origin_regex"] = (
+        r"https?://(localhost|127\.0\.0\.1|\[::1\])(:\d+)?"
+    )
 else:
     # En production : restrictif pour la sécurité
     cors_config["allow_methods"] = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
@@ -109,6 +148,26 @@ def root():
 def health_check():
     """Endpoint de santé"""
     return {"status": "healthy"}
+
+
+@app.get("/health/ready")
+def health_ready():
+    """Prêt à servir du trafic (inclut la base). Répond 503 si MySQL est indisponible."""
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return {"status": "ready", "database": "ok"}
+    except Exception as e:
+        logger.warning("health/ready: base indisponible — %s", e)
+        detail = (
+            str(e)
+            if settings.ENVIRONMENT == "development"
+            else "Base de données indisponible"
+        )
+        return JSONResponse(
+            status_code=503,
+            content={"status": "not_ready", "database": "error", "detail": detail},
+        )
 
 
 @app.get("/sitemap.xml")

@@ -4,32 +4,63 @@ import { useCartStore } from '../stores/cartStore'
 import { ordersAPI, analyticsAPI } from '../services/api'
 import { useState } from 'react'
 import { useLocaleStore } from '../stores/localeStore'
+import { useAuthStore } from '../stores/authStore'
 import { t } from '../i18n'
 import SeoHead from '../components/SeoHead'
 import Breadcrumbs from '../components/Breadcrumbs'
+import { getApiErrorMessage } from '../utils/apiErrors'
+
+const SHIPPING_METHODS = {
+  standard: {
+    label: 'Standard',
+    eta: '3 à 5 jours ouvrés',
+    note: 'Offerte dès 80€',
+  },
+  relay: {
+    label: 'Point relais',
+    eta: '2 à 4 jours ouvrés',
+    note: 'Retrait flexible près de chez vous',
+  },
+  express: {
+    label: 'Express',
+    eta: '24 à 48h',
+    note: 'Traitement prioritaire',
+  },
+}
 
 function CartPage() {
   const navigate = useNavigate()
   const { items, fetchCart, updateQuantity, removeItem, getTotal } = useCartStore()
   const locale = useLocaleStore((s) => s.locale)
+  const user = useAuthStore((s) => s.user)
   const [shippingAddress, setShippingAddress] = useState('')
   const [billingAddress, setBillingAddress] = useState('')
   const [shippingMethod, setShippingMethod] = useState('standard')
   const [paymentMethod, setPaymentMethod] = useState('card')
   const [promoCode, setPromoCode] = useState('')
   const [promoDiscount, setPromoDiscount] = useState(0)
+  const [checkoutError, setCheckoutError] = useState('')
 
   useEffect(() => {
     fetchCart()
   }, [fetchCart])
 
   const handleCheckout = async () => {
+    setCheckoutError('')
+    // Garde-fou UI miroir du backend: une commande est réservée au rôle client.
+    if (user?.role === 'vendeur' || user?.role === 'admin') {
+      const msg = 'Les comptes vendeur/admin ne peuvent pas passer commande. Connectez-vous avec un compte client.'
+      setCheckoutError(msg)
+      alert(msg)
+      return
+    }
     if (!shippingAddress.trim()) {
       alert('Merci de renseigner une adresse de livraison.')
       return
     }
     try {
-      await analyticsAPI.trackEvent({ event_type: 'checkout_started' })
+      // Ne jamais bloquer la commande si l'analytics est bloqué (adblock / privacy extension).
+      analyticsAPI.trackEvent({ event_type: 'checkout_started' }).catch(() => {})
       const response = await ordersAPI.createFromCart({
         shipping_address: shippingAddress,
         billing_address: billingAddress || shippingAddress,
@@ -41,7 +72,9 @@ function CartPage() {
       alert(`Commande créée avec succès. N° ${response.data?.order_number || ''}`)
       navigate('/orders')
     } catch (error) {
-      alert(error?.response?.data?.detail || 'Erreur lors de la création de la commande.')
+      const msg = getApiErrorMessage(error, 'Erreur lors de la création de la commande.')
+      setCheckoutError(msg)
+      alert(msg)
     }
   }
 
@@ -73,10 +106,11 @@ function CartPage() {
   })()
 
   const grandTotal = Math.max(0, getTotal() - promoDiscount) + shippingCost
+  const selectedShipping = SHIPPING_METHODS[shippingMethod] || SHIPPING_METHODS.standard
 
   if (items.length === 0) {
     return (
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-2xl mx-auto px-4 py-8">
         <SeoHead title={`${t(locale, 'myCart')} - Marketplace`} description="Panier d'achat et finalisation de commande." canonicalPath="/cart" />
         <Breadcrumbs items={[{ label: 'Accueil', to: '/' }, { label: t(locale, 'myCart') }]} />
         <h1 className="text-lg font-semibold text-gray-900 mb-6">Mon panier</h1>
@@ -91,7 +125,7 @@ function CartPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-2xl mx-auto px-4 py-8">
       <SeoHead title={`${t(locale, 'myCart')} - Marketplace`} description="Panier d'achat et finalisation de commande." canonicalPath="/cart" />
       <Breadcrumbs items={[{ label: 'Accueil', to: '/' }, { label: t(locale, 'myCart') }]} />
       <h1 className="text-lg font-semibold text-gray-900 mb-6">{t(locale, 'myCart')}</h1>
@@ -132,6 +166,16 @@ function CartPage() {
       </div>
 
       <div className="card bg-gray-50 border-gray-200">
+        {(user?.role === 'vendeur' || user?.role === 'admin') && (
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900" role="alert">
+            Ce compte est <strong>{user?.role}</strong>. Pour créer une commande visible dans "Mes commandes", utilisez un compte client.
+          </div>
+        )}
+        {checkoutError ? (
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">
+            {checkoutError}
+          </div>
+        ) : null}
         <div className="space-y-3 mb-4">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Adresse de livraison</label>
@@ -153,15 +197,31 @@ function CartPage() {
               placeholder="Si différente de l'adresse de livraison"
             />
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Livraison</label>
-              <select className="input" value={shippingMethod} onChange={(e) => setShippingMethod(e.target.value)}>
-                <option value="standard">Standard</option>
-                <option value="relay">Point relais</option>
-                <option value="express">Express</option>
-              </select>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Livraison</label>
+            <div className="grid sm:grid-cols-3 gap-2">
+              {Object.entries(SHIPPING_METHODS).map(([key, info]) => {
+                const active = shippingMethod === key
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setShippingMethod(key)}
+                    className={`text-left rounded-lg border px-3 py-2 transition ${
+                      active
+                        ? 'border-primary-600 bg-primary-50'
+                        : 'border-gray-200 bg-white hover:border-gray-300'
+                    }`}
+                  >
+                    <p className="text-xs font-semibold text-gray-900">{info.label}</p>
+                    <p className="text-[11px] text-gray-600">{info.eta}</p>
+                    <p className="text-[11px] text-gray-500 mt-1">{info.note}</p>
+                  </button>
+                )
+              })}
             </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Paiement</label>
               <select className="input" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
@@ -180,6 +240,10 @@ function CartPage() {
             />
             <button type="button" className="btn btn-secondary" onClick={applyPromo}>Appliquer</button>
           </div>
+          <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-900">
+            <p className="font-semibold">Livraison estimée ({selectedShipping.label})</p>
+            <p>{selectedShipping.eta}</p>
+          </div>
         </div>
         <div className="flex justify-between items-center mb-4">
           <span className="text-sm text-gray-700">Remise promo</span>
@@ -197,7 +261,11 @@ function CartPage() {
           <span className="text-sm font-medium text-gray-900">Total à payer</span>
           <span className="font-semibold text-gray-900">{grandTotal.toFixed(2)} €</span>
         </div>
-        <button onClick={handleCheckout} className="btn btn-primary w-full py-2">
+        <button
+          onClick={handleCheckout}
+          disabled={user?.role === 'vendeur' || user?.role === 'admin'}
+          className="btn btn-primary w-full py-2 disabled:opacity-60 disabled:cursor-not-allowed"
+        >
           Payer et commander
         </button>
       </div>

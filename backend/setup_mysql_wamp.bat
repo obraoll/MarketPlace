@@ -81,7 +81,7 @@ echo Activation de l'environnement virtuel...
 call venv\Scripts\activate
 
 echo Installation des dependances...
-pip install -q pymysql cryptography sqlalchemy python-dotenv pydantic pydantic-settings passlib python-jose bcrypt
+pip install -q pymysql cryptography sqlalchemy python-dotenv pydantic pydantic-settings "bcrypt>=4.1.2,<5" python-jose
 
 echo.
 echo ========================================

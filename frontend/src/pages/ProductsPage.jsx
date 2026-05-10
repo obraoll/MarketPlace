@@ -5,12 +5,14 @@ import { useWishlistStore } from '../stores/wishlistStore'
 import ProductCard from '../components/ProductCard'
 import SeoHead from '../components/SeoHead'
 import Breadcrumbs from '../components/Breadcrumbs'
+import { getApiErrorMessage } from '../utils/apiErrors'
 
 function ProductsPage() {
   const [products, setProducts] = useState([])
   const [allProducts, setAllProducts] = useState([])
   const [recentProducts, setRecentProducts] = useState([])
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState(null)
   const [searchSuggestions, setSearchSuggestions] = useState([])
   const wishlistIds = useWishlistStore((s) => s.ids)
   const toggleWishlist = useWishlistStore((s) => s.toggle)
@@ -26,7 +28,56 @@ function ProductsPage() {
   })
 
   useEffect(() => {
-    fetchProducts()
+    setFilters({
+      search: searchParams.get('search') || '',
+      category: searchParams.get('category') || '',
+      condition: searchParams.get('condition') || '',
+      min_price: searchParams.get('min_price') || '',
+      max_price: searchParams.get('max_price') || '',
+      sort: searchParams.get('sort') || 'relevance',
+    })
+  }, [searchParams])
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      setIsLoading(true)
+      setLoadError(null)
+      try {
+        const params = {}
+        const search = searchParams.get('search')
+        if (search) params.search = search
+        const category = searchParams.get('category')
+        if (category) params.category = category
+        const condition = searchParams.get('condition')
+        if (condition) params.condition = condition
+        const minPrice = searchParams.get('min_price')
+        if (minPrice) params.min_price = minPrice
+        const maxPrice = searchParams.get('max_price')
+        if (maxPrice) params.max_price = maxPrice
+        const response = await productsAPI.getAll(params)
+        const list = response.data || []
+        const sort = searchParams.get('sort') || 'relevance'
+        if (sort === 'price_asc') {
+          list.sort((a, b) => Number(a.price) - Number(b.price))
+        } else if (sort === 'price_desc') {
+          list.sort((a, b) => Number(b.price) - Number(a.price))
+        }
+        if (!cancelled) setProducts(list)
+      } catch (error) {
+        console.error('Erreur lors du chargement des produits:', error)
+        if (!cancelled) {
+          setProducts([])
+          setLoadError(getApiErrorMessage(error, 'Impossible de charger le catalogue.'))
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false)
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
   }, [searchParams])
 
   useEffect(() => {
@@ -67,30 +118,6 @@ function ProductsPage() {
       cancelled = true
     }
   }, [])
-
-  const fetchProducts = async () => {
-    setIsLoading(true)
-    try {
-      const params = {}
-      if (filters.search) params.search = filters.search
-      if (filters.category) params.category = filters.category
-      if (filters.condition) params.condition = filters.condition
-      if (filters.min_price) params.min_price = filters.min_price
-      if (filters.max_price) params.max_price = filters.max_price
-      const response = await productsAPI.getAll(params)
-      const list = response.data || []
-      if (filters.sort === 'price_asc') {
-        list.sort((a, b) => Number(a.price) - Number(b.price))
-      } else if (filters.sort === 'price_desc') {
-        list.sort((a, b) => Number(b.price) - Number(a.price))
-      }
-      setProducts(list)
-    } catch (error) {
-      console.error('Erreur lors du chargement des produits:', error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
 
   const fetchAllProducts = async () => {
     try {
@@ -149,7 +176,7 @@ function ProductsPage() {
   const comparedProducts = products.filter((p) => compareIds.includes(p.id))
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
       <SeoHead
         title="Produits - Marketplace"
         description="Catalogue de produits reconditionnés avec filtres, comparateur et favoris."
@@ -237,6 +264,23 @@ function ProductsPage() {
         </div>
       </div>
 
+      {loadError && (
+        <div
+          className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+          role="alert"
+        >
+          <p className="font-semibold">Impossible de récupérer les produits</p>
+          <p className="mt-1">{loadError}</p>
+          <p className="mt-2 text-xs text-red-700/90">
+            Test rapide : ouvrez{' '}
+            <a href="http://localhost:8000/api/v1/products/" className="underline" target="_blank" rel="noreferrer">
+              http://localhost:8000/api/v1/products/
+            </a>{' '}
+            — vous devez voir du JSON. Sinon, lancez le backend (uvicorn) et vérifiez MySQL.
+          </p>
+        </div>
+      )}
+
       {comparedProducts.length >= 2 && (
         <div className="card mb-6 overflow-x-auto">
           <h2 className="text-sm font-medium text-gray-900 mb-3">Comparateur rapide</h2>
@@ -278,7 +322,9 @@ function ProductsPage() {
           ))}
         </div>
       ) : products.length === 0 ? (
-        <p className="text-center py-10 text-sm text-gray-600">Aucun produit trouvé</p>
+        <p className="py-10 text-center text-sm text-gray-600">
+          {loadError ? 'Aucun produit affiché (erreur ci-dessus).' : 'Aucun produit trouvé.'}
+        </p>
       ) : (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
           {products.map((product) => (

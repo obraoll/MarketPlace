@@ -103,7 +103,7 @@ Write-Host "🔧 Activation de l'environnement virtuel..." -ForegroundColor Yell
 
 # Installer les dependances
 Write-Host "📥 Installation des dependances..." -ForegroundColor Yellow
-pip install -q pymysql cryptography sqlalchemy python-dotenv pydantic pydantic-settings passlib python-jose bcrypt 2>$null
+pip install -q pymysql cryptography sqlalchemy python-dotenv pydantic pydantic-settings "bcrypt>=4.1.2,<5" python-jose 2>$null
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan

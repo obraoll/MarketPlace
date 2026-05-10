@@ -24,6 +24,9 @@ def test_get_product_by_id(client, test_product):
     data = response.json()
     assert data["id"] == test_product.id
     assert data["name"] == "iPhone 12 Pro Test"
+    assert data.get("seller") is not None
+    assert data["seller"]["id"] == test_product.seller_id
+    assert data["seller"]["display_name"] == "Vendeur T."
 
 
 def test_get_nonexistent_product(client):

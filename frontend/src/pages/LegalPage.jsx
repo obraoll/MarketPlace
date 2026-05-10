@@ -5,7 +5,7 @@ import { t } from '../i18n'
 function LegalPage() {
   const locale = useLocaleStore((s) => s.locale)
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-4xl mx-auto px-4 py-8">
       <SeoHead
         title={`${t(locale, 'legalTitle')} - Marketplace`}
         description={locale === 'en' ? 'Marketplace terms and conditions.' : "Conditions générales d'utilisation de la marketplace."}

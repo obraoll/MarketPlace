@@ -11,7 +11,6 @@ from app.main import app
 from app.core.database import Base, get_db
 from app.models import User, Product, UserRole, ProductCategory, ProductCondition
 from app.core.security import get_password_hash
-from app.routes.auth import limiter as auth_limiter
 
 
 # Base de données en mémoire pour les tests
@@ -34,12 +33,9 @@ def disable_rate_limiting():
     if hasattr(app.state, 'limiter'):
         limiter = app.state.limiter
         original_enabled = getattr(limiter, "enabled", True)
-        original_auth_enabled = getattr(auth_limiter, "enabled", True)
         limiter.enabled = False
-        auth_limiter.enabled = False
         yield
         limiter.enabled = original_enabled
-        auth_limiter.enabled = original_auth_enabled
     else:
         yield
 

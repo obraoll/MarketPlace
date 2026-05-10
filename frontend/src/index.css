@@ -4,7 +4,17 @@
 
 @layer base {
   body {
-    @apply bg-gray-50 text-gray-900 text-sm;
+    @apply bg-surface-muted text-gray-900 text-sm font-sans antialiased;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
   }
 }
 
@@ -31,5 +41,18 @@
 
   .card {
     @apply bg-white rounded border border-gray-200 p-5;
+  }
+
+  /* Fiche produit (style configurateur marketplace reconditionné) */
+  .btn-pdp {
+    @apply inline-flex items-center justify-center font-semibold transition shadow-sm;
+  }
+
+  .btn-pdp-primary {
+    @apply btn-pdp rounded-full bg-primary-600 text-white px-6 py-3.5 hover:bg-primary-700 active:bg-primary-800 border border-primary-600;
+  }
+
+  .btn-pdp-secondary {
+    @apply btn-pdp rounded-full bg-white text-gray-800 px-4 py-3 border border-gray-300 hover:bg-gray-50 hover:border-gray-400;
   }
 }

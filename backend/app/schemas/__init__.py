@@ -13,6 +13,7 @@ from .product import (
     ProductCreate,
     ProductUpdate,
     ProductResponse,
+    SellerSnippet,
     AIDescriptionRequest,
     AIDescriptionResponse
 )
@@ -55,6 +56,7 @@ __all__ = [
     "ProductCreate",
     "ProductUpdate",
     "ProductResponse",
+    "SellerSnippet",
     "AIDescriptionRequest",
     "AIDescriptionResponse",
     "OrderCreate",

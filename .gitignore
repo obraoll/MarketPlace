@@ -33,7 +33,8 @@ backend/.env
 backend/.env.*
 !backend/.env.example
 
-# IDE
+# IDE / Cursor
+.cursor/
 .vscode/
 .idea/
 *.swp

@@ -36,6 +36,7 @@ class Product(Base):
     category = Column(SQLEnum(ProductCategory), nullable=False, index=True)
     condition = Column(SQLEnum(ProductCondition), nullable=False)
     price = Column(Float, nullable=False)
+    reference_price_neuf = Column(Float, nullable=True)
     stock = Column(Integer, default=0)
     description = Column(Text)
     specifications = Column(Text)  # JSON string

@@ -1,14 +1,47 @@
 import axios from 'axios'
 
-const API_URL = 'http://localhost:8000/api/v1'
+// En dev : URL directe du backend (évite les 404 si le proxy Vite ne transmet pas /api).
+// Optionnel : créez frontend/.env.development.local avec VITE_API_URL=http://127.0.0.1:8000/api/v1
+// En build prod : localhost sauf si VITE_API_URL est défini au déploiement.
+const API_URL =
+  import.meta.env.VITE_API_URL?.trim() ||
+  (import.meta.env.DEV
+    ? 'http://127.0.0.1:8000/api/v1'
+    : 'http://localhost:8000/api/v1')
 
 // Créer une instance axios
 const api = axios.create({
   baseURL: API_URL,
+  timeout: 20000,
   headers: {
     'Content-Type': 'application/json',
   },
 })
+
+// Normaliser les corps d’erreur (HTML ou texte brut → objet avec detail)
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const res = error.response
+    if (!res) return Promise.reject(error)
+    const data = res.data
+    if (typeof data === 'string') {
+      const trimmed = data.trim()
+      try {
+        res.data = JSON.parse(trimmed)
+      } catch {
+        const plain = trimmed.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+        res.data = {
+          detail:
+            plain.length > 0 && plain.length < 400
+              ? plain
+              : `Réponse ${res.status} non JSON (souvent le backend a planté ou renvoie une page HTML).`,
+        }
+      }
+    }
+    return Promise.reject(error)
+  },
+)
 
 // Intercepteur pour ajouter le token JWT
 api.interceptors.request.use(

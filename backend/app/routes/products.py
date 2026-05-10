@@ -17,6 +17,20 @@ from ..utils.permissions import check_product_ownership
 router = APIRouter(prefix="/products", tags=["Produits"])
 logger = logging.getLogger(__name__)
 
+
+def _seller_snippet(product: Product) -> Optional[dict]:
+    seller = getattr(product, "seller", None)
+    if seller is None:
+        return None
+    fn = (seller.first_name or "").strip()
+    ln = (seller.last_name or "").strip()
+    if ln:
+        display_name = f"{fn} {ln[0]}."
+    else:
+        display_name = fn or "Vendeur"
+    return {"id": seller.id, "display_name": display_name}
+
+
 def serialize_product(product: Product) -> dict:
     data = {
         "id": product.id,
@@ -25,6 +39,7 @@ def serialize_product(product: Product) -> dict:
         "category": product.category,
         "condition": product.condition,
         "price": product.price,
+        "reference_price_neuf": product.reference_price_neuf,
         "stock": product.stock,
         "description": product.description,
         "specifications": product.specifications,
@@ -33,6 +48,7 @@ def serialize_product(product: Product) -> dict:
         "is_active": product.is_active,
         "created_at": product.created_at,
         "badge": product.badge,
+        "seller": _seller_snippet(product),
         "image_urls": [],
         "variants": [],
     }

@@ -55,6 +55,10 @@ class OrderCheckoutMetaResponse(BaseModel):
     billing_address: str
     shipping_method: str
     shipping_cost: float
+    shipping_label: Optional[str] = None
+    estimated_delivery_start: Optional[str] = None
+    estimated_delivery_end: Optional[str] = None
+    tracking_number: Optional[str] = None
     payment_method: str
     payment_status: str
     model_config = ConfigDict(from_attributes=True)
