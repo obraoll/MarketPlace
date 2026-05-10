@@ -1,4 +1,4 @@
-# 🛒 Marketplace Reconditionné - Back Market Like
+# 🛒 Marketplace Reconditionné
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115.0-009688?logo=fastapi)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-18.3-61DAFB?logo=react)](https://react.dev/)
@@ -63,7 +63,7 @@ marketplace/
 ### 1. Cloner le projet
 
 ```bash
-git clone <votre-repo>
+git clone <marketplace>
 cd marketplace
 ```
 
@@ -326,15 +326,14 @@ Projet à usage pédagogique et démonstratif.
 
 ## 👨‍💻 Auteur
 
-**Votre Nom**  
-Formation : BTS SIO / Licence / Master  
+**Obraoll Dawn-smith**  
+Formation : BTS SIO SLAM  
 Année : 2025 - 2026
 
 ## 📞 Contact
 
-- Email : votre.email@example.com
-- LinkedIn : [Votre profil](https://linkedin.com/in/votre-profil)
-- Portfolio : [votre-site.com](https://votre-site.com)
+- Email : smithdawnmaleka@gmail.com
+- LinkedIn : [Dawn smith MALEKA](https://www.linkedin.com/in/dawn-smith-obraoll/)
 
 ---
 
